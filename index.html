@@ -392,15 +392,17 @@ function fromRow(r){const h=hash(r.id);return{
  hue:h%360,plan:h%3}}
 
 async function load(){
- const [ap,cfg,mb]=await Promise.all([
+ let [ap,cfg,mb]=await Promise.all([
   sb.from('apto_apartamentos').select('*, apto_historico(*)').order('criado_em',{ascending:false}),
-  sb.from('apto_configuracoes').select('criterios').eq('id',1).maybeSingle(),
+  sb.from('apto_configuracoes').select('criterios, ultima_importacao').eq('id',1).maybeSingle(),
   sb.from('apto_membros').select('email,nome')]);
+ if(cfg.error)cfg=await sb.from('apto_configuracoes').select('criterios').eq('id',1).maybeSingle();
  if(ap.error){$('#app').innerHTML=`<p class="loading">Não foi possível carregar os dados: ${esc(ap.error.message)}</p>`;return}
  S.membros=Object.fromEntries((mb.data||[]).map(m=>[m.email.toLowerCase(),m.nome]));
  S.semAcesso=!(mb.data||[]).length;
  S.list=(ap.data||[]).map(fromRow);
  if(cfg.data?.criterios)S.crit={...DEF_CRIT,...cfg.data.criterios};
+ S.auto=cfg.data?.ultima_importacao||null;
  $('#who').textContent=nomeDe(S.user?.email);
  render();renderDrawer();
 }
@@ -443,12 +445,13 @@ const scoreCls=s=>s>=80?'':s>=60?'mid':'low';
 function card(l,drag){
  const s=score(l);
  const visit=l.stage==='visita'&&l.visita?`<span class="tag visit">Visita ${fd(l.visita.data)} às ${l.visita.hora}</span>`:'';
+ const achado=l.stage==='novo'&&l.hist[0]?.t?.startsWith('Encontrado pela busca automática')?`<span class="tag new">Achado pela busca</span>`:'';
  const alerta=l.alertas.length?`<span class="tag" style="background:var(--rose-soft)">${l.alertas.length} alerta${l.alertas.length>1?'s':''}</span>`:'';
  return `<button class="card" ${drag?'draggable="true"':''} data-id="${l.id}" onclick="openDrawer('${l.id}')">
   <div class="plan" style="--h:${l.hue}">${planSvg(l.plan)}<span class="src">${esc(l.fonte)}</span><span class="score ${scoreCls(s)}">${s}%</span></div>
   <div class="cb"><div class="price">${fmt(l.preco)}</div><div class="t">${esc(l.bairro)}</div>
   <div class="specs"><span>${l.area||'?'} m²</span><span>${l.quartos??'?'} dorm.</span><span>${l.banheiros??'?'} banh.</span><span>${l.vagas??'?'} vaga${l.vagas>1?'s':''}</span></div>
-  <div class="specs"><span>Condomínio ${fmt(l.cond)}</span></div>${visit}${alerta}</div></button>`;
+  <div class="specs"><span>Condomínio ${fmt(l.cond)}</span></div>${visit}${achado}${alerta}</div></button>`;
 }
 function visitRow(l,extra){const d=parseIso(l.visita.data);return `<button class="vrow" onclick="openDrawer('${l.id}')"><div class="vdate"><b>${d.getDate()}</b><span>${MESC[d.getMonth()]}</span></div><div><b>${esc(l.bairro)}${extra?', '+esc(l.endereco):''}</b><div class="sm muted">${SEM[d.getDay()]} às ${l.visita.hora}, ${esc(l.visita.com)}${extra?', '+stageName(l.stage):''}</div></div></button>`}
 
@@ -474,7 +477,7 @@ function vPainel(){
   <section class="panel"><div class="p-head"><h3>Próximas visitas</h3><button class="link" onclick="go('calendario')">Calendário</button></div>
    ${vis.length?vis.map(l=>visitRow(l)).join(''):'<p class="empty">Nenhuma visita marcada. Abra um apartamento e use “Agendar visita”.</p>'}
   </section>
-  <section class="panel"><div class="p-head"><h3>Novos para avaliar</h3></div>
+  <section class="panel"><div class="p-head"><h3>Novos para avaliar</h3><span class="sm muted">${autoResumoCurto()} <button class="link sm" id="btnBusca" onclick="buscarAgora()">Buscar agora</button></span></div>
    ${novos.length?`<div class="grid">${novos.map(l=>card(l)).join('')}</div>`:`<p class="empty">Nada novo por aqui. Cole o link de um anúncio para começar.</p><button class="btn primary" onclick="openAdd()">Adicionar link de anúncio</button>`}
   </section>
  </div>`;
@@ -519,10 +522,28 @@ function vCrit(){
    <div class="field"><span>Importante para vocês</span><div class="chips">${tog('pets','Aceita gatos')}${tog('telas','Permite telas de proteção')}${tog('metro','Metrô a até 800 m')}${tog('cozinha','Cozinha ampla')}${tog('suite','Pelo menos 1 suíte')}</div></div>
    <p class="sm muted">Quando o Gemini não encontra uma informação, ela conta como meio ponto e aparece com “?”.</p>
   </section>
-  <section class="panel"><h3 style="margin-bottom:10px">Próximas etapas</h3>
-   <ul class="trust"><li><span class="dot" style="background:var(--oak);margin-top:7px"></span><span><b>Etapa 2:</b> visitas criadas direto no Google Agenda de vocês dois.</span></li>
-   <li><span class="dot" style="background:var(--sky);margin-top:7px"></span><span><b>Etapa 3:</b> busca automática diária nas fontes confiáveis, usando estes critérios.</span></li></ul>
+  <section class="panel"><div class="p-head"><h3>Busca automática</h3><button class="btn primary sm" id="btnBusca" onclick="buscarAgora()">Buscar agora</button></div>
+   <p class="sm muted" style="margin-bottom:12px">Roda às 8h, 12h, 17h e 21h. Cada vez busca até 3 bairros da lista, revezando, no QuintoAndar, RE/MAX, Lopes, Coelho da Fonseca, Zap e VivaReal. Entram em “Novos” os anúncios com preço até 10% acima do teto, área e dormitórios dentro dos critérios.</p>
+   ${autoResumoLongo()}
+   <p class="sm muted" style="margin-top:12px">A busca encontra anúncios que já apareceram nos buscadores, o que pode levar de horas a alguns dias depois da publicação.</p>
   </section></div>`;
+}
+function quando(iso){if(!iso)return'';const d=new Date(iso);const hoje=todayIso()===isoOf(d);return `${hoje?'hoje':fd(isoOf(d))} às ${pad(d.getHours())}:${pad(d.getMinutes())}`}
+function autoResumoCurto(){const a=S.auto;if(!a)return'Busca automática ainda não rodou.';return `Última busca ${quando(a.em)}: ${a.novos||0} novo${a.novos===1?'':'s'}.`}
+function autoResumoLongo(){const a=S.auto;if(!a)return'<p class="empty" style="padding:6px 0">A busca automática ainda não rodou.</p>';
+ return `<ul class="trust"><li><span>Última busca <b>${quando(a.em)}</b>${a.bairros?.length?` em ${esc(a.bairros.join(', '))}`:''}.</span></li>
+ <li><span>${a.encontrados||0} anúncios encontrados, <b>${a.novos||0} novos</b> no funil, ${a.fora_dos_criterios||0} fora dos critérios${a.nao_lidos?`, ${a.nao_lidos} não puderam ser lidos`:''}${a.na_fila?`, ${a.na_fila} na fila para a próxima busca`:''}.</span></li>
+ ${a.aviso?`<li><span style="color:var(--rose)">${esc(a.aviso)}</span></li>`:''}</ul>`}
+let buscando=false;
+async function buscarAgora(){
+ if(buscando)return;buscando=true;
+ document.querySelectorAll('#btnBusca').forEach(b=>{b.disabled=true;b.textContent='Buscando...'});
+ toast('Buscando anúncios. Pode levar até dois minutos.');
+ const {data,error}=await sb.functions.invoke('busca-automatica',{body:{}});
+ buscando=false;
+ if(error){toast('A busca falhou: '+await errMsg(error));render();return}
+ toast(data.novos?`${data.novos} apartamento${data.novos>1?'s':''} novo${data.novos>1?'s':''} no funil`:'Nenhum anúncio novo nesta busca');
+ await load();
 }
 let ct;function saveCrit(){clearTimeout(ct);ct=setTimeout(async()=>{const{error}=await sb.from('apto_configuracoes').upsert({id:1,criterios:S.crit});if(error)toast('Não foi possível salvar os critérios: '+error.message)},500)}
 function setCrit(k,v){S.crit[k]=Number(v)||0;saveCrit();render()}
