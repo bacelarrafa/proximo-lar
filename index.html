@@ -382,7 +382,7 @@ const nomeDe=e=>S.membros[(e||'').toLowerCase()]||(e||'').split('@')[0];
 
 function normCondo(c){c=c||{};return{nome:c.nome,ano:c.ano,torres:c.torres,unid:c.unidades,lazer:Array.isArray(c.lazer)?c.lazer:[],portaria:c.portaria,pets:c.aceita_pets,telas:c.permite_telas,nota:c.nota,aval:c.avaliacoes,metro:c.transporte,metroDist:c.metro_distancia_m,resumo:c.resumo,atencao:Array.isArray(c.atencao)?c.atencao:[],fontes:c.fontes}}
 function fromRow(r){const h=hash(r.id);return{
- id:r.id,url:r.url,fonte:r.fonte||'Link',titulo:r.titulo||'',bairro:r.bairro||'Bairro não identificado',endereco:r.endereco||'',
+ id:r.id,url:r.url,link:r.link||r.url,fonte:r.fonte||'Link',titulo:r.titulo||'',bairro:r.bairro||'Bairro não identificado',endereco:r.endereco||'',
  preco:+r.preco||0,cond:+r.valor_condominio||0,iptu:+r.iptu_mensal||0,area:+r.area||0,quartos:r.quartos,suites:r.suites,banheiros:r.banheiros,vagas:r.vagas,andar:r.andar||'',
  cozinhaAmpla:r.cozinha_ampla,descricao:r.descricao||'',condo:normCondo(r.condominio),alertas:Array.isArray(r.alertas)?r.alertas:[],
  stage:r.etapa,prev:r.etapa_anterior,visita:r.visita_data?{data:r.visita_data,hora:(r.visita_hora||'').slice(0,5),com:r.visita_com||''}:null,
@@ -523,7 +523,7 @@ function vCrit(){
    <p class="sm muted">Quando o Gemini não encontra uma informação, ela conta como meio ponto e aparece com “?”.</p>
   </section>
   <section class="panel"><div class="p-head"><h3>Busca automática</h3><button class="btn primary sm" id="btnBusca" onclick="buscarAgora()">Buscar agora</button></div>
-   <p class="sm muted" style="margin-bottom:12px">Roda às 8h, 12h, 17h e 21h. Cada vez busca até 3 bairros da lista, revezando, no QuintoAndar, RE/MAX, Lopes, Coelho da Fonseca, Zap e VivaReal. Entram em “Novos” os anúncios com preço até 10% acima do teto, área e dormitórios dentro dos critérios.</p>
+   <p class="sm muted" style="margin-bottom:12px">Roda às 8h, 13h e 19h, com até 3 bairros da lista por vez, revezando. O QuintoAndar é consultado direto na fonte, já com os filtros de preço, área, quartos, banheiros e vagas. RE/MAX, Lopes, Coelho da Fonseca, Zap e VivaReal vêm pelo buscador, e cada link é conferido: só entra se abrir um anúncio ativo.</p>
    ${autoResumoLongo()}
    <p class="sm muted" style="margin-top:12px">A busca encontra anúncios que já apareceram nos buscadores, o que pode levar de horas a alguns dias depois da publicação.</p>
   </section></div>`;
@@ -532,20 +532,46 @@ function quando(iso){if(!iso)return'';const d=new Date(iso);const hoje=todayIso(
 function autoResumoCurto(){const a=S.auto;if(!a)return'Busca automática ainda não rodou.';return `Última busca ${quando(a.em)}: ${a.novos||0} novo${a.novos===1?'':'s'}.`}
 function autoResumoLongo(){const a=S.auto;if(!a)return'<p class="empty" style="padding:6px 0">A busca automática ainda não rodou.</p>';
  return `<ul class="trust"><li><span>Última busca <b>${quando(a.em)}</b>${a.bairros?.length?` em ${esc(a.bairros.join(', '))}`:''}.</span></li>
- ${a.links_buscador!=null?`<li><span>O buscador trouxe ${a.links_buscador} links; ${a.paginas_listagem||0} eram páginas de listagem e foram abertas para pegar os anúncios de dentro.</span></li>`:''}
- <li><span>${a.encontrados||0} anúncios encontrados, <b>${a.novos||0} novos</b> no funil, ${a.fora_dos_criterios||0} fora dos critérios${a.nao_lidos?`, ${a.nao_lidos} não puderam ser lidos`:''}${a.na_fila?`, ${a.na_fila} na fila para a próxima busca`:''}.</span></li>
+ ${a.quintoandar?`<li><span><b>QuintoAndar:</b> ${a.quintoandar.encontrados||0} anúncios, ${a.quintoandar.novos||0} novos no funil.</span></li>`:''}
+ ${a.links_buscador!=null?`<li><span><b>Outros portais:</b> o buscador trouxe ${a.links_buscador} links e ${a.paginas_listagem||0} páginas de listagem foram abertas.</span></li>`:''}
+ <li><span>Total: <b>${a.novos||0} novos</b> no funil.</span></li>
+ <li><span>${a.encontrados||0} anúncios de outros portais, ${a.fora_dos_criterios||0} fora dos critérios${a.indisponiveis?`, ${a.indisponiveis} fora do ar descartados`:''}${a.nao_lidos?`, ${a.nao_lidos} não puderam ser lidos`:''}${a.na_fila?`, ${a.na_fila} na fila para a próxima busca`:''}.</span></li>
  ${a.aviso?`<li><span style="color:var(--rose)">${esc(a.aviso)}</span></li>`:''}</ul>
  ${a.fora?.length?`<details style="margin-top:10px"><summary class="sm" style="cursor:pointer;font-weight:600">Ver os que ficaram fora dos critérios</summary><ul class="attn" style="margin-top:8px">${a.fora.map(x=>`<li><a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener" style="color:inherit">${esc(x.motivo)}</a></li>`).join('')}</ul><p class="sm muted" style="margin-top:6px">Se algum deveria ter entrado, abra o link e use “+ Link” para adicionar na mão.</p></details>`:''}`}
 let buscando=false;
+const PASSOS=['Bairros e critérios','QuintoAndar','Outros portais (buscador)','Abrindo páginas de listagem','Separando o que é novo','Conferindo e lendo os anúncios','Concluído'];
+const MINICHECK='<svg viewBox="0 0 20 20" width="10"><path d="M4 10.5 8 14l8-8" fill="none" stroke="currentColor" stroke-width="3"/></svg>';
+function progressoHtml(p,seg){
+ const atual=p?p.passo:0,fim=!!p?.fim;
+ return `<ul class="steps">${PASSOS.map((t,k)=>{const st=fim||k<atual?'done':k===atual?'act':'';const det=p?.detalhes?.[k];
+  return `<li class="${st}" style="align-items:flex-start"><span class="ic" style="margin-top:2px">${st==='done'?MINICHECK:''}</span><span>${t}${det?`<span class="sm muted" style="display:block;font-weight:400">${esc(det)}</span>`:''}</span></li>`}).join('')}</ul>
+ <p class="sm muted">${seg} segundos</p>`;
+}
 async function buscarAgora(){
- if(buscando)return;buscando=true;
- document.querySelectorAll('#btnBusca').forEach(b=>{b.disabled=true;b.textContent='Buscando...'});
- toast('Buscando anúncios. Pode levar até dois minutos.');
+ if(buscando){toast('A busca já está rodando.');return}
+ buscando=true;const t0=Date.now();let ultimo=null;
+ const seg=()=>Math.round((Date.now()-t0)/1000);
+ openModal(`<h3>Buscando apartamentos</h3><div id="progBox">${progressoHtml(null,0)}</div>
+  <p class="sm muted">Leva de um a dois minutos. Pode fechar esta janela: a busca continua e o resultado aparece no app.</p>
+  <div class="m-actions"><button class="btn" onclick="closeModal()">Fechar</button></div>`);
+ const tick=async()=>{
+  const {data}=await sb.from('apto_configuracoes').select('busca_progresso').eq('id',1).maybeSingle();
+  const p=data?.busca_progresso;if(p&&new Date(p.inicio).getTime()>=t0-10000)ultimo=p;
+  const b=$('#progBox');if(b)b.innerHTML=progressoHtml(ultimo,seg());
+ };
+ const iv=setInterval(tick,1500);
  const {data,error}=await sb.functions.invoke('busca-automatica',{body:{}});
- buscando=false;
- if(error){toast('A busca falhou: '+await errMsg(error));render();return}
- toast(data.novos?`${data.novos} apartamento${data.novos>1?'s':''} novo${data.novos>1?'s':''} no funil`:'Nenhum anúncio novo nesta busca');
+ clearInterval(iv);buscando=false;
+ const aberta=!!$('#progBox');
  await load();
+ if(error){const m=await errMsg(error);
+  if(aberta)$('#mbox').innerHTML=`<h3>A busca falhou</h3><p class="muted">${esc(m)}</p><div class="m-actions"><button class="btn" onclick="closeModal()">Fechar</button></div>`;
+  else toast('A busca falhou: '+m);return}
+ const n=data.novos||0,txt=n?`${n} apartamento${n>1?'s':''} novo${n>1?'s':''} no funil`:'Nenhum apartamento novo nesta busca';
+ if(aberta){const det=[...(ultimo?.detalhes||[])];det[6]=txt;
+  $('#mbox').innerHTML=`<h3>Busca concluída</h3>${progressoHtml({passo:6,fim:true,detalhes:det},seg())}
+  <div class="m-actions"><button class="btn" onclick="closeModal()">Fechar</button>${n?`<button class="btn primary" onclick="closeModal();go('funil')">Ver no funil</button>`:''}</div>`}
+ else toast(txt);
 }
 let ct;function saveCrit(){clearTimeout(ct);ct=setTimeout(async()=>{const{error}=await sb.from('apto_configuracoes').upsert({id:1,criterios:S.crit});if(error)toast('Não foi possível salvar os critérios: '+error.message)},500)}
 function setCrit(k,v){S.crit[k]=Number(v)||0;saveCrit();render()}
@@ -574,7 +600,7 @@ function drawerHtml(l){
    <div class="price" style="margin-top:10px">${fmt(l.preco)}</div>
    <div class="costs"><span>Condomínio ${fmt(l.cond)}</span><span>IPTU ${fmt(l.iptu)}/mês</span>${m2?`<span>${fmt(m2)}/m²</span>`:''}</div></div>
   <div class="specgrid"><div><b>${l.area||'?'}</b><span>m²</span></div><div><b>${l.quartos??'?'}</b><span>dorm. (${l.suites??'?'} suíte)</span></div><div><b>${l.banheiros??'?'}</b><span>banheiros</span></div><div><b>${l.vagas??'?'}</b><span>vaga${l.vagas>1?'s':''}</span></div><div><b>${esc(l.andar)||'?'}</b><span>andar</span></div></div>
-  <div class="actions">${l.stage!=='descartado'?`<button class="btn primary" onclick="openSchedule('${l.id}')">${l.visita&&l.stage==='visita'?'Remarcar visita':'Agendar visita'}</button>`:''}<a class="btn" href="${esc(safeUrl(l.url))}" target="_blank" rel="noopener">Abrir anúncio</a>${l.stage!=='descartado'?`<button class="btn ghost" style="color:var(--rose)" onclick="openDiscard('${l.id}')">Descartar</button>`:`<button class="btn" onclick="restore('${l.id}')">Voltar para o funil</button>`}</div>
+  <div class="actions">${l.stage!=='descartado'?`<button class="btn primary" onclick="openSchedule('${l.id}')">${l.visita&&l.stage==='visita'?'Remarcar visita':'Agendar visita'}</button>`:''}<a class="btn" href="${esc(safeUrl(l.link))}" target="_blank" rel="noopener">Abrir anúncio</a>${l.stage!=='descartado'?`<button class="btn ghost" style="color:var(--rose)" onclick="openDiscard('${l.id}')">Descartar</button>`:`<button class="btn" onclick="restore('${l.id}')">Voltar para o funil</button>`}</div>
   ${vb}
   ${l.alertas.length?`<div><p class="sm" style="font-weight:600">Alertas sobre o anúncio</p><ul class="attn warn">${l.alertas.map(a=>`<li>${esc(a)}</li>`).join('')}</ul></div>`:''}
   ${l.stage==='descartado'?`<div class="visitbox" style="background:var(--rose-soft)"><div><b>Descartado: ${esc(l.descarte?.motivo)}</b><div class="sm">${esc(l.descarte?.obs||'')}</div></div></div>`:`<div><p class="sm" style="font-weight:600;margin-bottom:8px">Etapa</p><div class="stage-sel">${STAGES.filter(x=>x.k!=='descartado').map(x=>`<button class="${l.stage===x.k?'on':''}" onclick="setStage('${l.id}','${x.k}')">${x.l}</button>`).join('')}</div></div>`}
