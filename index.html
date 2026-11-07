@@ -532,8 +532,10 @@ function quando(iso){if(!iso)return'';const d=new Date(iso);const hoje=todayIso(
 function autoResumoCurto(){const a=S.auto;if(!a)return'Busca automática ainda não rodou.';return `Última busca ${quando(a.em)}: ${a.novos||0} novo${a.novos===1?'':'s'}.`}
 function autoResumoLongo(){const a=S.auto;if(!a)return'<p class="empty" style="padding:6px 0">A busca automática ainda não rodou.</p>';
  return `<ul class="trust"><li><span>Última busca <b>${quando(a.em)}</b>${a.bairros?.length?` em ${esc(a.bairros.join(', '))}`:''}.</span></li>
+ ${a.links_buscador!=null?`<li><span>O buscador trouxe ${a.links_buscador} links; ${a.paginas_listagem||0} eram páginas de listagem e foram abertas para pegar os anúncios de dentro.</span></li>`:''}
  <li><span>${a.encontrados||0} anúncios encontrados, <b>${a.novos||0} novos</b> no funil, ${a.fora_dos_criterios||0} fora dos critérios${a.nao_lidos?`, ${a.nao_lidos} não puderam ser lidos`:''}${a.na_fila?`, ${a.na_fila} na fila para a próxima busca`:''}.</span></li>
- ${a.aviso?`<li><span style="color:var(--rose)">${esc(a.aviso)}</span></li>`:''}</ul>`}
+ ${a.aviso?`<li><span style="color:var(--rose)">${esc(a.aviso)}</span></li>`:''}</ul>
+ ${a.fora?.length?`<details style="margin-top:10px"><summary class="sm" style="cursor:pointer;font-weight:600">Ver os que ficaram fora dos critérios</summary><ul class="attn" style="margin-top:8px">${a.fora.map(x=>`<li><a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener" style="color:inherit">${esc(x.motivo)}</a></li>`).join('')}</ul><p class="sm muted" style="margin-top:6px">Se algum deveria ter entrado, abra o link e use “+ Link” para adicionar na mão.</p></details>`:''}`}
 let buscando=false;
 async function buscarAgora(){
  if(buscando)return;buscando=true;
