@@ -103,13 +103,14 @@ main{max-width:1260px;margin:0 auto;padding:26px 20px 60px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;text-align:left;padding:0;width:100%}
 .card:hover{border-color:var(--moss)}
-.plan{--h:140;position:relative;aspect-ratio:16/10;background:hsl(var(--h) 18% var(--pl));display:grid;place-items:center;color:hsl(var(--h) 22% var(--plan-l))}
+.plan{--h:140;position:relative;overflow:hidden;aspect-ratio:16/10;background:hsl(var(--h) 18% var(--pl));display:grid;place-items:center;color:hsl(var(--h) 22% var(--plan-l))}
 .plan svg{width:72%;height:auto}
 .plan svg *{fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .plan svg .f{stroke-width:1;opacity:.55}
 .plan svg .dr{stroke-width:1;stroke-dasharray:2 2.5}
-.plan .src{position:absolute;left:10px;top:10px;background:var(--surface);border-radius:99px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--ink)}
-.plan .score{position:absolute;right:10px;top:10px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:700;background:var(--moss);color:var(--on-moss)}
+.plan .foto{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.plan .src{z-index:1;position:absolute;left:10px;top:10px;background:var(--surface);border-radius:99px;padding:3px 9px;font-size:12px;font-weight:600;color:var(--ink)}
+.plan .score{z-index:1;position:absolute;right:10px;top:10px;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:700;background:var(--moss);color:var(--on-moss)}
 .plan .score.mid{background:var(--oak);color:#fff}
 .plan .score.low{background:var(--rose);color:#fff}
 .cb{padding:12px 14px 14px;display:flex;flex-direction:column;gap:3px}
@@ -362,6 +363,8 @@ const PLANS=[
  `<rect x="8" y="8" width="104" height="64" rx="2"/><path d="M8 38h30M48 38h10M58 8v64M58 30h54M86 30v42"/><path d="M38 38a10 10 0 0 1 10-10" class="dr"/><rect x="14" y="14" width="20" height="16" rx="2" class="f"/><rect x="92" y="40" width="14" height="22" rx="2" class="f"/><rect x="66" y="40" width="14" height="10" rx="2" class="f"/><path d="M20 50h24v14H20z" class="f"/>`,
  `<rect x="8" y="8" width="104" height="64" rx="2"/><path d="M40 8v64M40 28h18M68 28h44M76 28v44M40 50h36"/><path d="M58 28a10 10 0 0 1 10 10" class="dr"/><rect x="84" y="36" width="20" height="18" rx="2" class="f"/><circle cx="58" cy="62" r="6" class="f"/><rect x="14" y="16" width="18" height="26" rx="2" class="f"/>`
 ];
+// Foto do anúncio por cima da planta desenhada; se a imagem não carregar, ela some e a planta aparece
+const capa=l=>planSvg(l.plan)+(l.foto?`<img class="foto" src="${esc(l.foto)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`:'');
 const planSvg=i=>`<svg viewBox="0 0 120 80" aria-hidden="true">${PLANS[i%3]}</svg>`;
 const KEYS=`<svg class="keys" viewBox="0 0 200 160" aria-hidden="true"><circle cx="70" cy="60" r="34" fill="none" stroke="currentColor" stroke-width="10"/><path d="M96 82 170 150M140 122l16-14M154 136l14-12" fill="none" stroke="currentColor" stroke-width="10" stroke-linecap="round"/></svg>`;
 const DEF_CRIT={bairros:[],min:600000,max:1000000,area:68,quartos:3,banheiros:2,vagas:1,cond:1100,pets:true,telas:true,metro:true,cozinha:true,suite:false};
@@ -382,7 +385,7 @@ const nomeDe=e=>S.membros[(e||'').toLowerCase()]||(e||'').split('@')[0];
 
 function normCondo(c){c=c||{};return{nome:c.nome,ano:c.ano,torres:c.torres,unid:c.unidades,lazer:Array.isArray(c.lazer)?c.lazer:[],portaria:c.portaria,pets:c.aceita_pets,telas:c.permite_telas,nota:c.nota,aval:c.avaliacoes,metro:c.transporte,metroDist:c.metro_distancia_m,resumo:c.resumo,atencao:Array.isArray(c.atencao)?c.atencao:[],fontes:c.fontes}}
 function fromRow(r){const h=hash(r.id);return{
- id:r.id,url:r.url,link:r.link||r.url,fonte:r.fonte||'Link',titulo:r.titulo||'',bairro:r.bairro||'Bairro não identificado',endereco:r.endereco||'',
+ id:r.id,url:r.url,link:r.link||r.url,foto:/^https?:\/\//i.test(r.foto||'')?r.foto:null,fonte:r.fonte||'Link',titulo:r.titulo||'',bairro:r.bairro||'Bairro não identificado',endereco:r.endereco||'',
  preco:+r.preco||0,cond:+r.valor_condominio||0,iptu:+r.iptu_mensal||0,area:+r.area||0,quartos:r.quartos,suites:r.suites,banheiros:r.banheiros,vagas:r.vagas,andar:r.andar||'',
  cozinhaAmpla:r.cozinha_ampla,descricao:r.descricao||'',condo:normCondo(r.condominio),alertas:Array.isArray(r.alertas)?r.alertas:[],
  stage:r.etapa,prev:r.etapa_anterior,visita:r.visita_data?{data:r.visita_data,hora:(r.visita_hora||'').slice(0,5),com:r.visita_com||''}:null,
@@ -448,7 +451,7 @@ function card(l,drag){
  const achado=l.stage==='novo'&&l.hist[0]?.t?.startsWith('Encontrado pela busca automática')?`<span class="tag new">Achado pela busca</span>`:'';
  const alerta=l.alertas.length?`<span class="tag" style="background:var(--rose-soft)">${l.alertas.length} alerta${l.alertas.length>1?'s':''}</span>`:'';
  return `<button class="card" ${drag?'draggable="true"':''} data-id="${l.id}" onclick="openDrawer('${l.id}')">
-  <div class="plan" style="--h:${l.hue}">${planSvg(l.plan)}<span class="src">${esc(l.fonte)}</span><span class="score ${scoreCls(s)}">${s}%</span></div>
+  <div class="plan" style="--h:${l.hue}">${capa(l)}<span class="src">${esc(l.fonte)}</span><span class="score ${scoreCls(s)}">${s}%</span></div>
   <div class="cb"><div class="price">${fmt(l.preco)}</div><div class="t">${esc(l.bairro)}</div>
   <div class="specs"><span>${l.area||'?'} m²</span><span>${l.quartos??'?'} dorm.</span><span>${l.banheiros??'?'} banh.</span><span>${l.vagas??'?'} vaga${l.vagas>1?'s':''}</span></div>
   <div class="specs"><span>Condomínio ${fmt(l.cond)}</span></div>${visit}${achado}${alerta}</div></button>`;
@@ -583,7 +586,7 @@ function vDesc(){
  const rs={};ds.forEach(l=>{const m=l.descarte?.motivo||'Outro';rs[m]=(rs[m]||0)+1});
  return `<div class="page-head"><div><h2>Descartados</h2><p class="muted">Os motivos mostram o que vocês já sabem que não querem.</p></div></div>
  ${ds.length?`<div class="reason-sum">${Object.entries(rs).sort((a,b)=>b[1]-a[1]).map(([m,n])=>`<span>${esc(m)}: ${n}</span>`).join('')}</div>`:''}
- ${ds.length?ds.map(l=>`<div class="drow"><div class="plan" style="--h:${l.hue}">${planSvg(l.plan)}</div><div><b>${esc(l.bairro)}</b> <span class="muted sm">${fmt(l.preco)}, ${l.area||'?'} m², ${esc(l.fonte)}</span><div class="why"><b>${esc(l.descarte?.motivo)}</b>${l.descarte?.obs?`. ${esc(l.descarte.obs)}`:''}</div><div class="sm muted">Descartado em ${fd(l.descarte?.d)}</div></div><button class="btn sm" onclick="restore('${l.id}')">Voltar para o funil</button></div>`).join(''):'<p class="empty">Nenhum apartamento descartado ainda.</p>'}`;
+ ${ds.length?ds.map(l=>`<div class="drow"><div class="plan" style="--h:${l.hue}">${capa(l)}</div><div><b>${esc(l.bairro)}</b> <span class="muted sm">${fmt(l.preco)}, ${l.area||'?'} m², ${esc(l.fonte)}</span><div class="why"><b>${esc(l.descarte?.motivo)}</b>${l.descarte?.obs?`. ${esc(l.descarte.obs)}`:''}</div><div class="sm muted">Descartado em ${fd(l.descarte?.d)}</div></div><button class="btn sm" onclick="restore('${l.id}')">Voltar para o funil</button></div>`).join(''):'<p class="empty">Nenhum apartamento descartado ainda.</p>'}`;
 }
 
 /* ---------- gaveta ---------- */
@@ -594,7 +597,7 @@ function drawerHtml(l){
  const vb=l.visita&&['visita','visitado','proposta'].includes(l.stage)?`<div class="visitbox"><div class="vdate" style="background:var(--surface)"><b>${parseIso(l.visita.data).getDate()}</b><span>${MESC[parseIso(l.visita.data).getMonth()]}</span></div><div><b>${l.visita.data<todayIso()?'Visitado em':'Visita'} ${fdl(l.visita.data)}</b><div class="sm muted">${l.visita.hora}, ${esc(l.visita.com)}</div></div></div>`:'';
  const temCondo=cd.nome||cd.resumo||cd.ano;
  return `<button class="dw-close" onclick="closeDrawer()" aria-label="Fechar">×</button>
- <div class="plan dw-plan" style="--h:${l.hue}">${planSvg(l.plan)}<span class="src">${esc(l.fonte)}</span><span class="score ${scoreCls(s)}" style="right:56px">${s}% compatível</span></div>
+ <div class="plan dw-plan" style="--h:${l.hue}">${capa(l)}<span class="src">${esc(l.fonte)}</span><span class="score ${scoreCls(s)}" style="right:56px">${s}% compatível</span></div>
  <div class="dw-body">
   <div class="dw-top"><h2>${esc(l.bairro)}</h2><p class="muted">${esc(l.titulo)}${l.endereco?', '+esc(l.endereco):''}</p>
    <div class="price" style="margin-top:10px">${fmt(l.preco)}</div>
@@ -696,6 +699,7 @@ function showPreview(d,manual){
  $('#mbox').classList.add('wide');
  $('#mbox').innerHTML=`<h3>${manual?'Preencher dados do anúncio':'Confira os dados encontrados'}</h3>
  <p class="sm muted">${manual?'Preencha o que souber. Dá para editar depois pelo Supabase.':'O Gemini pode errar. Corrijam o que estiver diferente do anúncio antes de salvar.'}</p>
+ ${d.foto&&/^https?:\/\//i.test(d.foto)?`<div class="plan" style="aspect-ratio:16/7;border-radius:12px;overflow:hidden">${capa({foto:d.foto,plan:0})}</div>`:''}
  <div class="fgrid">${FIELDS.map(([k,lbl,t,cl])=>`<label class="lb ${cl}">${lbl}<input class="in" id="f_${k}" type="${t}" value="${esc(d[k]??'')}"></label>`).join('')}</div>
  ${!manual?`<div class="result-note" style="margin:0">${c.nome?`Condomínio <b>${esc(c.nome)}</b>${c.ano?`, construído em ${esc(c.ano)}`:''}${c.nota?`, nota ${String(c.nota).replace('.',',')} de 5`:''}.`:'Nenhuma informação do condomínio encontrada.'} Os dados do condomínio vêm do anúncio e do que o Gemini já sabe sobre o prédio. Confirmem na visita.</div>`:''}
  ${al.length?`<ul class="attn warn" style="margin:0">${al.map(a=>`<li>${esc(a)}</li>`).join('')}</ul>`:''}
@@ -704,7 +708,7 @@ function showPreview(d,manual){
 async function savePending(){
  const d=window._pending;if(!d)return;
  const v=k=>{const el=$('#f_'+k);if(!el)return null;const x=el.value.trim();if(x==='')return null;return el.type==='number'?Number(x):x};
- const row={url:d.url,fonte:d.fonte||srcOf(d.url),descricao:d.descricao||null,cozinha_ampla:typeof d.cozinha_ampla==='boolean'?d.cozinha_ampla:null,
+ const row={url:d.url,foto:/^https?:\/\//i.test(d.foto||'')?d.foto:null,fonte:d.fonte||srcOf(d.url),descricao:d.descricao||null,cozinha_ampla:typeof d.cozinha_ampla==='boolean'?d.cozinha_ampla:null,
   condominio:d.condominio||{},alertas:Array.isArray(d.alertas)?d.alertas:[],etapa:'novo'};
  FIELDS.forEach(([k])=>row[k]=v(k));
  $('#saveBtn').disabled=true;
