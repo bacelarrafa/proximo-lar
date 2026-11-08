@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<!-- Arquivo opcional no mesmo repositório com a chave publishable (veja config.exemplo.js) -->
+<script src="config.js"></script>
 <style>
 :root{
   --bg:#F5F5EF;--surface:#FFFEFB;--surface-2:#EEEEE6;--ink:#22302A;--muted:#66726A;--line:#E1E1D7;
@@ -373,7 +375,10 @@ function bairroOk(b){if(!b||b==='Bairro não identificado')return null;const n=n
 
 /* ---------- Supabase e estado ---------- */
 // Se a chave não estiver no código, usa a que foi colada na tela inicial (guardada só neste navegador)
+// Ordem: chave no código, depois a do config.js do repositório, depois a colada neste navegador
 let SB_KEY=SUPABASE_KEY;
+const KEY_DO_CONFIG=typeof window.PROXIMO_LAR_KEY==='string'&&/^(sb_publishable_\S+|eyJ[\w-]+\.[\w-]+\.[\w-]+)$/.test(window.PROXIMO_LAR_KEY.trim())?window.PROXIMO_LAR_KEY.trim():'';
+if(SB_KEY.startsWith('COLE')&&KEY_DO_CONFIG)SB_KEY=KEY_DO_CONFIG;
 if(SB_KEY.startsWith('COLE')){try{SB_KEY=localStorage.getItem('proximo-lar-sbkey')||SB_KEY}catch(e){}}
 const configurado=/^https:\/\//.test(SUPABASE_URL)&&!SB_KEY.startsWith('COLE');
 const sb=configurado?supabase.createClient(SUPABASE_URL,SB_KEY):null;
@@ -763,7 +768,7 @@ function render(){
  if(S.semAcesso){$('#app').innerHTML=`<div class="login"><div class="lbox"><h2>Acesso não liberado</h2><p class="muted">Seu e-mail entrou, mas não está na tabela <span class="code">apto_membros</span> do Supabase. Cadastre-o lá e recarregue a página.</p><button class="btn" onclick="logout()">Sair</button></div></div>`;return}
  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.view));
  const fn={painel:vPainel,funil:vFunil,calendario:vCal,criterios:vCrit,descartados:vDesc}[S.view]||vPainel;
- $('#app').innerHTML=fn()+`<div class="foot">Conectado como ${esc(nomeDe(S.user.email))}. <button class="link sm" onclick="logout()">Sair</button>${SUPABASE_KEY.startsWith('COLE')?' <button class="link sm" onclick="forgetKey()">Trocar chave do Supabase</button>':''}</div>`;
+ $('#app').innerHTML=fn()+`<div class="foot">Conectado como ${esc(nomeDe(S.user.email))}. <button class="link sm" onclick="logout()">Sair</button>${SUPABASE_KEY.startsWith('COLE')&&!KEY_DO_CONFIG?' <button class="link sm" onclick="forgetKey()">Trocar chave do Supabase</button>':''}</div>`;
  if(S.view==='funil')bindDrag();
 }
 function bindDrag(){
