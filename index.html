@@ -381,7 +381,17 @@ const KEY_DO_CONFIG=typeof window.PROXIMO_LAR_KEY==='string'&&/^(sb_publishable_
 if(SB_KEY.startsWith('COLE')&&KEY_DO_CONFIG)SB_KEY=KEY_DO_CONFIG;
 if(SB_KEY.startsWith('COLE')){try{SB_KEY=localStorage.getItem('proximo-lar-sbkey')||SB_KEY}catch(e){}}
 const configurado=/^https:\/\//.test(SUPABASE_URL)&&!SB_KEY.startsWith('COLE');
-const sb=configurado?supabase.createClient(SUPABASE_URL,SB_KEY):null;
+// O login do Próximo Lar fica numa chave própria. Antes ficava na chave padrão do Supabase,
+// que é compartilhada com qualquer outro app do mesmo projeto aberto no mesmo endereço (ex.: o app do lar).
+const STORAGE_KEY='proximo-lar-auth';
+try{
+ if(configurado&&!localStorage.getItem('proximo-lar-sessao-separada')){
+  const ref=new URL(SUPABASE_URL).hostname.split('.')[0];
+  localStorage.removeItem(`sb-${ref}-auth-token`);
+  localStorage.setItem('proximo-lar-sessao-separada','1');
+ }
+}catch(e){}
+const sb=configurado?supabase.createClient(SUPABASE_URL,SB_KEY,{auth:{storageKey:STORAGE_KEY}}):null;
 const S={view:'painel',list:[],crit:{...DEF_CRIT},membros:{},user:null,open:null,calM:todayIso().slice(0,7),semAcesso:false};
 try{const v=localStorage.getItem('proximo-lar-view');if(v)S.view=v}catch(e){}
 const get=id=>S.list.find(l=>l.id===id);
